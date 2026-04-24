@@ -48,6 +48,7 @@ const viewport = document.querySelector('.viewport');
 const fallbackEl = document.getElementById('sceneFallback');
 
 const controls = {
+  renderMode: document.getElementById('renderMode'),
   startShape: document.getElementById('startShape'),
   endShape: document.getElementById('endShape'),
   startSize: document.getElementById('startSize'),
@@ -112,16 +113,6 @@ camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
 root = new THREE.Group();
 scene.add(root);
 
-const lightA = new THREE.DirectionalLight(0xffffff, 1.0);
-lightA.position.set(3, 2, 6);
-scene.add(lightA);
-
-const lightB = new THREE.DirectionalLight(0x85ff98, 0.35);
-lightB.position.set(-2, -1.5, -3);
-scene.add(lightB);
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.22));
-
 function polygonByName(name) {
   if (name === 'triangle') {
     return [
@@ -174,8 +165,12 @@ function clearRoot() {
   while (root.children.length > 0) {
     const child = root.children[root.children.length - 1];
     root.remove(child);
-    child.geometry.dispose();
-    child.material.dispose();
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      child.material.dispose();
+    }
   }
 }
 
@@ -294,6 +289,7 @@ function buildTrail() {
     startRot: THREE.MathUtils.degToRad(clampNum(controls.startRotation.value, -180, 180)),
     endRot: THREE.MathUtils.degToRad(clampNum(controls.endRotation.value, -180, 180)),
     thickness: clampNum(controls.thickness.value, 0.015, 0.12),
+    renderMode: controls.renderMode.value,
     curvature: clampNum(controls.curvature.value, 0, 2.2),
     density: Math.round(clampNum(controls.density.value, 16, 86)),
     progression: controls.progression.value,
@@ -305,7 +301,8 @@ function buildTrail() {
     endColor: new THREE.Color(endpointColors.endColor)
   };
 
-  root.rotation.set(params.rotX, params.rotY, params.rotZ);
+  const isGraphic2d = params.renderMode === 'graphic2d';
+  root.rotation.set(isGraphic2d ? 0 : params.rotX, isGraphic2d ? 0 : params.rotY, isGraphic2d ? 0 : params.rotZ);
   root.scale.setScalar(params.globalScale);
 
   const sampleCount = 84;
@@ -322,31 +319,40 @@ function buildTrail() {
     const shapeRot = THREE.MathUtils.lerp(params.startRot, params.endRot, t);
     const color = new THREE.Color().lerpColors(params.startColor, params.endColor, t);
 
-    const centerX = Math.sin(t * Math.PI * 1.2) * params.curvature * 1.1;
-    const centerY = Math.sin(t * Math.PI * 2.0 + 0.55) * params.curvature * 0.55;
-    const centerZ = THREE.MathUtils.lerp(params.trailLength / 2, -params.trailLength / 2, tRaw);
+    const spacingProgress = THREE.MathUtils.lerp(params.trailLength / 2, -params.trailLength / 2, tRaw);
+    const centerX = Math.sin(t * Math.PI * 1.2) * params.curvature * 1.05;
+    const centerY = Math.sin(t * Math.PI * 2.0 + 0.55) * params.curvature * 0.52 + spacingProgress * (isGraphic2d ? 0.34 : 0.12);
+    const centerZ = isGraphic2d ? 0 : spacingProgress;
 
     const shapePoints = interpolateShape(startBase, endBase, t).map((point) => {
-      const rotated = point.clone().rotateAround(new THREE.Vector2(), shapeRot).multiplyScalar(size);
+      const taper = isGraphic2d ? THREE.MathUtils.lerp(1.2, 0.62, tRaw) : 1;
+      const rotated = point.clone().rotateAround(new THREE.Vector2(), shapeRot).multiplyScalar(size * taper);
       return new THREE.Vector3(rotated.x + centerX, rotated.y + centerY, centerZ);
     });
 
-    const curve = new THREE.CatmullRomCurve3(shapePoints, true, 'catmullrom', 0.62);
-    const tube = new THREE.TubeGeometry(curve, sampleCount, params.thickness, 7, true);
-    const opacity = THREE.MathUtils.lerp(1, Math.max(0.2, 1 - params.fade), tRaw);
+    const geometry = new THREE.BufferGeometry().setFromPoints(shapePoints);
+    const opacity = THREE.MathUtils.lerp(
+      isGraphic2d ? 0.96 : 1,
+      Math.max(isGraphic2d ? 0.12 : 0.2, 1 - params.fade),
+      tRaw
+    );
 
-    const material = new THREE.MeshStandardMaterial({
+    const material = new THREE.LineBasicMaterial({
       color,
-      roughness: 0.33,
-      metalness: 0.32,
       transparent: true,
       opacity
     });
 
-    const mesh = new THREE.Mesh(tube, material);
-    root.add(mesh);
+    const line = new THREE.LineLoop(geometry, material);
+    root.add(line);
 
-    generatedTrails.push({ points: shapePoints, color: color.getStyle(), thickness: params.thickness, opacity });
+    generatedTrails.push({
+      points: shapePoints,
+      color: color.getStyle(),
+      thickness: params.thickness,
+      opacity,
+      renderMode: params.renderMode
+    });
   }
 
   applyBackgroundColor();
@@ -397,7 +403,8 @@ function exportSvg() {
     });
 
     const d = projected.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
-    return `<path d="${d} Z" fill="none" stroke="${trail.color}" stroke-opacity="${trail.opacity.toFixed(3)}" stroke-width="${(trail.thickness * 60).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const strokeScale = trail.renderMode === 'graphic2d' ? 56 : 48;
+    return `<path d="${d} Z" fill="none" stroke="${trail.color}" stroke-opacity="${trail.opacity.toFixed(3)}" stroke-width="${(trail.thickness * strokeScale).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round"/>`;
   });
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -471,6 +478,7 @@ function smartRandom() {
 }
 
 [
+  controls.renderMode,
   controls.startShape,
   controls.endShape,
   controls.startSize,
