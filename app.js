@@ -18,28 +18,21 @@ const OPPOSITE_BY_BACKGROUND = {
   [BRAND_COLORS.lightGray]: [BRAND_COLORS.darkGreen, BRAND_COLORS.mediumGreen, BRAND_COLORS.mediumGray, BRAND_COLORS.coral]
 };
 
-const EASING = {
-  linear: (t) => t,
-  easeIn: (t) => t ** 2,
-  easeOut: (t) => 1 - (1 - t) ** 2,
-  easeInOut: (t) => (t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2)
-};
-
 const PRESETS = {
   flow01: {
-    startShape: 'triangle', endShape: 'diamond', startSize: 1.15, endSize: 0.82, startRotation: -8, endRotation: 74,
-    thickness: 0.052, curvature: 0.95, density: 56, rotX: 17, rotY: -23, rotZ: 9, globalScale: 1.02, trailLength: 8.4,
-    progression: 'easeInOut', fade: 0.22, blendSide: 'end', background: BRAND_COLORS.darkGreen, opposite: BRAND_COLORS.mediumGreen
+    startShape: 'triangle', endShape: 'diamond', startSize: 1.15, endSize: 0.82, startRotation: -8, endRotation: 42,
+    thickness: 0.052, density: 56, trailAngle: 22, rotX: 12, rotY: -18, rotZ: 6, globalScale: 1.02, trailLength: 8.8,
+    fade: 0.22, blendSide: 'end', background: BRAND_COLORS.darkGreen, opposite: BRAND_COLORS.mediumGreen
   },
   convergence: {
     startShape: 'diamond', endShape: 'diamond', startSize: 1.42, endSize: 0.62, startRotation: 0, endRotation: 112,
-    thickness: 0.058, curvature: 0.62, density: 62, rotX: 22, rotY: -16, rotZ: 19, globalScale: 0.98, trailLength: 9.3,
-    progression: 'easeIn', fade: 0.3, blendSide: 'start', background: BRAND_COLORS.lightGray, opposite: BRAND_COLORS.darkGreen
+    thickness: 0.058, density: 62, trailAngle: 300, rotX: 18, rotY: -14, rotZ: 14, globalScale: 0.98, trailLength: 9.3,
+    fade: 0.3, blendSide: 'start', background: BRAND_COLORS.lightGray, opposite: BRAND_COLORS.darkGreen
   },
   signal: {
     startShape: 'triangle', endShape: 'triangle', startSize: 0.9, endSize: 1.46, startRotation: -66, endRotation: 14,
-    thickness: 0.048, curvature: 1.3, density: 48, rotX: 10, rotY: -30, rotZ: -4, globalScale: 1.08, trailLength: 7.1,
-    progression: 'easeOut', fade: 0.16, blendSide: 'end', background: BRAND_COLORS.mediumGray, opposite: BRAND_COLORS.coral
+    thickness: 0.048, density: 48, trailAngle: 70, rotX: 8, rotY: -24, rotZ: -4, globalScale: 1.08, trailLength: 7.1,
+    fade: 0.16, blendSide: 'end', background: BRAND_COLORS.mediumGray, opposite: BRAND_COLORS.coral
   }
 };
 
@@ -55,12 +48,11 @@ const controls = {
   endSize: document.getElementById('endSize'),
   globalScale: document.getElementById('globalScale'),
   trailLength: document.getElementById('trailLength'),
+  trailAngle: document.getElementById('trailAngle'),
   startRotation: document.getElementById('startRotation'),
   endRotation: document.getElementById('endRotation'),
   thickness: document.getElementById('thickness'),
-  curvature: document.getElementById('curvature'),
   density: document.getElementById('density'),
-  progression: document.getElementById('progression'),
   fade: document.getElementById('fade'),
   blendSide: document.getElementById('blendSide'),
   rotX: document.getElementById('rotX'),
@@ -109,7 +101,9 @@ try {
 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 scene = new THREE.Scene();
-camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+camera = new THREE.OrthographicCamera(-6, 6, 6, -6, 0.1, 100);
+camera.position.set(0, 0, 10);
+camera.lookAt(0, 0, 0);
 root = new THREE.Group();
 scene.add(root);
 
@@ -177,23 +171,38 @@ function clearRoot() {
 function frameTrailInView() {
   const box = new THREE.Box3().setFromObject(root);
   if (box.isEmpty()) {
+    camera.left = -6;
+    camera.right = 6;
+    camera.top = 6;
+    camera.bottom = -6;
     camera.position.set(0, 0, 10);
-    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
     return;
   }
 
   const center = box.getCenter(new THREE.Vector3());
   root.position.sub(center);
 
-  const sphere = box.getBoundingSphere(new THREE.Sphere());
-  const radius = Math.max(sphere.radius, 1.1);
-  const fitHeightDistance = radius / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
-  const fitWidthDistance = fitHeightDistance / camera.aspect;
-  const distance = 1.25 * Math.max(fitHeightDistance, fitWidthDistance);
+  const size = box.getSize(new THREE.Vector3());
+  const halfW = Math.max(2.4, size.x * 0.64);
+  const halfH = Math.max(2.4, size.y * 0.64);
+  const aspect = Math.max(0.01, camera.aspect);
 
-  camera.position.set(0, 0, distance);
-  camera.near = Math.max(0.1, distance - radius * 3);
-  camera.far = distance + radius * 3;
+  if (halfW / halfH > aspect) {
+    camera.left = -halfW;
+    camera.right = halfW;
+    camera.top = halfW / aspect;
+    camera.bottom = -halfW / aspect;
+  } else {
+    camera.left = -halfH * aspect;
+    camera.right = halfH * aspect;
+    camera.top = halfH;
+    camera.bottom = -halfH;
+  }
+
+  camera.position.set(0, 0, 10);
+  camera.near = 0.1;
+  camera.far = 100;
   camera.lookAt(0, 0, 0);
   camera.updateProjectionMatrix();
 }
@@ -284,15 +293,13 @@ function buildTrail() {
     endShape: controls.endShape.value,
     startSize: clampNum(controls.startSize.value, 0.35, 2.6),
     endSize: clampNum(controls.endSize.value, 0.35, 2.6),
-    globalScale: clampNum(controls.globalScale.value, 0.7, 1.8),
-    trailLength: clampNum(controls.trailLength.value, 5, 12),
+    globalScale: clampNum(controls.globalScale.value, 0.5, 2.2),
+    trailLength: clampNum(controls.trailLength.value, 3, 16),
+    trailAngle: THREE.MathUtils.degToRad(clampNum(controls.trailAngle.value, 0, 360)),
     startRot: THREE.MathUtils.degToRad(clampNum(controls.startRotation.value, -180, 180)),
     endRot: THREE.MathUtils.degToRad(clampNum(controls.endRotation.value, -180, 180)),
     thickness: clampNum(controls.thickness.value, 0.015, 0.12),
-    renderMode: controls.renderMode.value,
-    curvature: clampNum(controls.curvature.value, 0, 2.2),
-    density: Math.round(clampNum(controls.density.value, 16, 86)),
-    progression: controls.progression.value,
+    density: Math.round(clampNum(controls.density.value, 16, 96)),
     fade: clampNum(controls.fade.value, 0, 0.75),
     rotX: THREE.MathUtils.degToRad(clampNum(controls.rotX.value, -180, 180)),
     rotY: THREE.MathUtils.degToRad(clampNum(controls.rotY.value, -180, 180)),
@@ -301,41 +308,33 @@ function buildTrail() {
     endColor: new THREE.Color(endpointColors.endColor)
   };
 
-  const isGraphic2d = params.renderMode === 'graphic2d';
-  root.rotation.set(isGraphic2d ? 0 : params.rotX, isGraphic2d ? 0 : params.rotY, isGraphic2d ? 0 : params.rotZ);
+  root.rotation.set(params.rotX, params.rotY, params.rotZ);
   root.scale.setScalar(params.globalScale);
 
   const sampleCount = 84;
   const startBase = resamplePolygon(polygonByName(params.startShape), sampleCount);
   const endBase = resamplePolygon(polygonByName(params.endShape), sampleCount);
-  const ease = EASING[params.progression] ?? EASING.linear;
+  const direction = new THREE.Vector2(Math.cos(params.trailAngle), Math.sin(params.trailAngle));
 
   generatedTrails = [];
 
   for (let i = 0; i < params.density; i += 1) {
-    const tRaw = params.density === 1 ? 0 : i / (params.density - 1);
-    const t = ease(tRaw);
+    const t = params.density === 1 ? 0 : i / (params.density - 1);
     const size = THREE.MathUtils.lerp(params.startSize, params.endSize, t);
     const shapeRot = THREE.MathUtils.lerp(params.startRot, params.endRot, t);
     const color = new THREE.Color().lerpColors(params.startColor, params.endColor, t);
 
-    const spacingProgress = THREE.MathUtils.lerp(params.trailLength / 2, -params.trailLength / 2, tRaw);
-    const centerX = Math.sin(t * Math.PI * 1.2) * params.curvature * 1.05;
-    const centerY = Math.sin(t * Math.PI * 2.0 + 0.55) * params.curvature * 0.52 + spacingProgress * (isGraphic2d ? 0.34 : 0.12);
-    const centerZ = isGraphic2d ? 0 : spacingProgress;
+    const offset = THREE.MathUtils.lerp(-params.trailLength / 2, params.trailLength / 2, t);
+    const centerX = direction.x * offset;
+    const centerY = direction.y * offset;
 
     const shapePoints = interpolateShape(startBase, endBase, t).map((point) => {
-      const taper = isGraphic2d ? THREE.MathUtils.lerp(1.2, 0.62, tRaw) : 1;
-      const rotated = point.clone().rotateAround(new THREE.Vector2(), shapeRot).multiplyScalar(size * taper);
-      return new THREE.Vector3(rotated.x + centerX, rotated.y + centerY, centerZ);
+      const rotated = point.clone().rotateAround(new THREE.Vector2(), shapeRot).multiplyScalar(size);
+      return new THREE.Vector3(rotated.x + centerX, rotated.y + centerY, 0);
     });
 
     const geometry = new THREE.BufferGeometry().setFromPoints(shapePoints);
-    const opacity = THREE.MathUtils.lerp(
-      isGraphic2d ? 0.96 : 1,
-      Math.max(isGraphic2d ? 0.12 : 0.2, 1 - params.fade),
-      tRaw
-    );
+    const opacity = THREE.MathUtils.lerp(1, Math.max(0.2, 1 - params.fade), t);
 
     const material = new THREE.LineBasicMaterial({
       color,
@@ -350,8 +349,7 @@ function buildTrail() {
       points: shapePoints,
       color: color.getStyle(),
       thickness: params.thickness,
-      opacity,
-      renderMode: params.renderMode
+      opacity
     });
   }
 
@@ -403,8 +401,7 @@ function exportSvg() {
     });
 
     const d = projected.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
-    const strokeScale = trail.renderMode === 'graphic2d' ? 56 : 48;
-    return `<path d="${d} Z" fill="none" stroke="${trail.color}" stroke-opacity="${trail.opacity.toFixed(3)}" stroke-width="${(trail.thickness * strokeScale).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    return `<path d="${d} Z" fill="none" stroke="${trail.color}" stroke-opacity="${trail.opacity.toFixed(3)}" stroke-width="${(trail.thickness * 56).toFixed(2)}" stroke-linejoin="round" stroke-linecap="round"/>`;
   });
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -428,12 +425,11 @@ function applyPreset(name) {
   controls.endSize.value = preset.endSize;
   controls.globalScale.value = preset.globalScale;
   controls.trailLength.value = preset.trailLength;
+  controls.trailAngle.value = preset.trailAngle;
   controls.startRotation.value = preset.startRotation;
   controls.endRotation.value = preset.endRotation;
   controls.thickness.value = preset.thickness;
-  controls.curvature.value = preset.curvature;
   controls.density.value = preset.density;
-  controls.progression.value = preset.progression;
   controls.fade.value = preset.fade;
   controls.blendSide.value = preset.blendSide;
   controls.rotX.value = preset.rotX;
@@ -459,19 +455,18 @@ function smartRandom() {
   controls.endShape.value = Math.random() > 0.5 ? 'triangle' : 'diamond';
   controls.startSize.value = (0.7 + Math.random() * 1.2).toFixed(2);
   controls.endSize.value = (0.7 + Math.random() * 1.2).toFixed(2);
-  controls.globalScale.value = (0.85 + Math.random() * 0.45).toFixed(2);
-  controls.trailLength.value = (6.2 + Math.random() * 4.5).toFixed(1);
+  controls.globalScale.value = (0.8 + Math.random() * 0.6).toFixed(2);
+  controls.trailLength.value = (4.5 + Math.random() * 8.5).toFixed(1);
+  controls.trailAngle.value = Math.round(Math.random() * 360);
   controls.startRotation.value = Math.round(-90 + Math.random() * 180);
   controls.endRotation.value = Math.round(-90 + Math.random() * 180);
   controls.thickness.value = (0.038 + Math.random() * 0.028).toFixed(3);
-  controls.curvature.value = (0.35 + Math.random() * 1.35).toFixed(2);
-  controls.density.value = Math.round(36 + Math.random() * 32);
+  controls.density.value = Math.round(36 + Math.random() * 48);
   controls.fade.value = (0.08 + Math.random() * 0.36).toFixed(2);
   controls.blendSide.value = Math.random() > 0.5 ? 'start' : 'end';
-  controls.progression.value = ['linear', 'easeIn', 'easeOut', 'easeInOut'][Math.floor(Math.random() * 4)];
-  controls.rotX.value = Math.round(-25 + Math.random() * 50);
-  controls.rotY.value = Math.round(-40 + Math.random() * 80);
-  controls.rotZ.value = Math.round(-25 + Math.random() * 50);
+  controls.rotX.value = Math.round(-28 + Math.random() * 56);
+  controls.rotY.value = Math.round(-38 + Math.random() * 76);
+  controls.rotZ.value = Math.round(-28 + Math.random() * 56);
 
   renderSwatches();
   buildTrail();
@@ -485,12 +480,11 @@ function smartRandom() {
   controls.endSize,
   controls.globalScale,
   controls.trailLength,
+  controls.trailAngle,
   controls.startRotation,
   controls.endRotation,
   controls.thickness,
-  controls.curvature,
   controls.density,
-  controls.progression,
   controls.fade,
   controls.blendSide,
   controls.rotX,
