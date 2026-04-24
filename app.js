@@ -1,6 +1,8 @@
+import * as THREE from 'https://unpkg.com/three@0.164.1/build/three.module.js';
+
 const canvas = document.getElementById('scene');
+const viewport = document.querySelector('.viewport');
 const fallbackEl = document.getElementById('sceneFallback');
-const { THREE } = window;
 
 const controls = {
   startShape: document.getElementById('startShape'),
@@ -26,11 +28,6 @@ function showFallback(message) {
   fallbackEl.textContent = message;
   fallbackEl.classList.remove('hidden');
   canvas.classList.add('hidden');
-}
-
-if (!THREE) {
-  showFallback('Three.js failed to load. Check your network connection or content-security policy and reload.');
-  throw new Error('THREE unavailable');
 }
 
 if (!window.WebGLRenderingContext) {
@@ -148,6 +145,13 @@ function frameTrailInView() {
   camera.updateProjectionMatrix();
 }
 
+function applyBackgroundColor() {
+  const color = controls.bgColor.value;
+  scene.background = new THREE.Color(color);
+  viewport.style.backgroundColor = color;
+  canvas.style.backgroundColor = color;
+}
+
 function buildTrail() {
   clearRoot();
   root.position.set(0, 0, 0);
@@ -208,12 +212,11 @@ function buildTrail() {
     generatedTrails.push({ points: shapePoints, color: color.getStyle(), thickness: params.thickness });
   }
 
-  scene.background = new THREE.Color(controls.bgColor.value);
+  applyBackgroundColor();
   frameTrailInView();
 }
 
 function resize() {
-  const viewport = document.querySelector('.viewport');
   const { clientWidth, clientHeight } = viewport;
   renderer.setSize(clientWidth, clientHeight, false);
   camera.aspect = clientWidth / clientHeight;
@@ -275,5 +278,6 @@ controls.exportSvg.addEventListener('click', exportSvg);
 window.addEventListener('resize', resize);
 
 resize();
+applyBackgroundColor();
 buildTrail();
 animate();
