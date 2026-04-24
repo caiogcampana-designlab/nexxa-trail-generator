@@ -29,23 +29,15 @@
               <option value="triangle">Triangle</option>
             </select>
           </label>
-          <label>Start size <input id="startSize" type="range" min="0.35" max="2.6" value="1.18" step="0.01" /></label>
-          <label>End size <input id="endSize" type="range" min="0.35" max="2.6" value="0.8" step="0.01" /></label>
-          <label>Global scale <input id="globalScale" type="range" min="0.7" max="1.8" value="1" step="0.01" /></label>
-          <label>Trail length <input id="trailLength" type="range" min="5" max="12" value="8.6" step="0.1" /></label>
+          <label>Start size <input id="startSize" type="range" min="0.35" max="2.6" value="1.15" step="0.01" /></label>
+          <label>End size <input id="endSize" type="range" min="0.35" max="2.6" value="0.85" step="0.01" /></label>
+          <label>Global scale <input id="globalScale" type="range" min="0.5" max="2.2" value="1" step="0.01" /></label>
+          <label>Trail length <input id="trailLength" type="range" min="3" max="16" value="8" step="0.1" /></label>
+          <label>Trail angle <input id="trailAngle" type="range" min="0" max="360" value="0" step="1" /></label>
           <label>Start rotation <input id="startRotation" type="range" min="-180" max="180" value="0" step="1" /></label>
-          <label>End rotation <input id="endRotation" type="range" min="-180" max="180" value="72" step="1" /></label>
-          <label>Stroke thickness <input id="thickness" type="range" min="0.015" max="0.12" value="0.055" step="0.001" /></label>
-          <label>Trail curvature <input id="curvature" type="range" min="0" max="2.2" value="1.05" step="0.01" /></label>
-          <label>Line density <input id="density" type="range" min="16" max="86" value="54" step="1" /></label>
-          <label>Blend progression
-            <select id="progression">
-              <option value="linear">Linear</option>
-              <option value="easeIn">Ease In</option>
-              <option value="easeOut">Ease Out</option>
-              <option value="easeInOut">Ease In-Out</option>
-            </select>
-          </label>
+          <label>End rotation <input id="endRotation" type="range" min="-180" max="180" value="0" step="1" /></label>
+          <label>Stroke thickness <input id="thickness" type="range" min="0.015" max="0.12" value="0.05" step="0.001" /></label>
+          <label>Line density <input id="density" type="range" min="16" max="96" value="56" step="1" /></label>
           <label>Fade start → end <input id="fade" type="range" min="0" max="0.75" value="0.2" step="0.01" /></label>
           <label>Background swatch</label>
           <div id="bgSwatches" class="swatch-group" aria-label="Background swatch selector"></div>
@@ -57,9 +49,9 @@
           </label>
           <label>Opposite trail swatch</label>
           <div id="oppositeSwatches" class="swatch-group" aria-label="Opposite trail swatch selector"></div>
-          <label>3D rotation X <input id="rotX" type="range" min="-180" max="180" value="18" step="1" /></label>
-          <label>3D rotation Y <input id="rotY" type="range" min="-180" max="180" value="-22" step="1" /></label>
-          <label>3D rotation Z <input id="rotZ" type="range" min="-180" max="180" value="12" step="1" /></label>
+          <label>3D rotation X <input id="rotX" type="range" min="-180" max="180" value="0" step="1" /></label>
+          <label>3D rotation Y <input id="rotY" type="range" min="-180" max="180" value="0" step="1" /></label>
+          <label>3D rotation Z <input id="rotZ" type="range" min="-180" max="180" value="0" step="1" /></label>
         </div>
         <div class="preset-actions">
           <button id="presetFlow01">NEXXA Flow 01</button>
