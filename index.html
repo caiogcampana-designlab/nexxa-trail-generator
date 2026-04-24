@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NEXXA Trail Generator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="controls">
+        <h1>NEXXA Trail</h1>
+        <div class="control-grid">
+          <label>Start shape
+            <select id="startShape">
+              <option value="triangle">Triangle</option>
+              <option value="diamond">Diamond</option>
+            </select>
+          </label>
+          <label>End shape
+            <select id="endShape">
+              <option value="diamond">Diamond</option>
+              <option value="triangle">Triangle</option>
+            </select>
+          </label>
+          <label>Start size <input id="startSize" type="range" min="0.2" max="3" value="1.2" step="0.01" /></label>
+          <label>End size <input id="endSize" type="range" min="0.2" max="3" value="0.7" step="0.01" /></label>
+          <label>Start rotation <input id="startRotation" type="range" min="-180" max="180" value="0" step="1" /></label>
+          <label>End rotation <input id="endRotation" type="range" min="-180" max="180" value="75" step="1" /></label>
+          <label>Stroke thickness <input id="thickness" type="range" min="0.01" max="0.2" value="0.06" step="0.005" /></label>
+          <label>Trail curvature <input id="curvature" type="range" min="0" max="3" value="1.2" step="0.01" /></label>
+          <label>Line density <input id="density" type="range" min="10" max="100" value="50" step="1" /></label>
+          <label>3D rotation X <input id="rotX" type="range" min="-180" max="180" value="18" step="1" /></label>
+          <label>3D rotation Y <input id="rotY" type="range" min="-180" max="180" value="-22" step="1" /></label>
+          <label>3D rotation Z <input id="rotZ" type="range" min="-180" max="180" value="12" step="1" /></label>
+          <label>Start color <input id="startColor" type="color" value="#40f8d2" /></label>
+          <label>End color <input id="endColor" type="color" value="#6488ff" /></label>
+          <label>Background color <input id="bgColor" type="color" value="#090c12" /></label>
+        </div>
+        <div class="actions">
+          <button id="exportPng">Export PNG</button>
+          <button id="exportSvg">Export SVG</button>
+        </div>
+      </aside>
+      <main class="viewport">
+        <canvas id="scene"></canvas>
+      </main>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
