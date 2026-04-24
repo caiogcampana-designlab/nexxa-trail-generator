@@ -98,6 +98,28 @@ button:hover {
   display: block;
 }
 
+.viewport {
+  position: relative;
+  background: #020b05;
+}
+
+.scene-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: #7fff9f;
+  background: radial-gradient(circle at 50% 40%, #0a2110 0%, #020b05 65%, #020704 100%);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.hidden {
+  display: none;
+}
+
 @media (max-width: 880px) {
   #app {
     grid-template-columns: 1fr;

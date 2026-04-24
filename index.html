@@ -33,9 +33,9 @@
           <label>3D rotation X <input id="rotX" type="range" min="-180" max="180" value="18" step="1" /></label>
           <label>3D rotation Y <input id="rotY" type="range" min="-180" max="180" value="-22" step="1" /></label>
           <label>3D rotation Z <input id="rotZ" type="range" min="-180" max="180" value="12" step="1" /></label>
-          <label>Start color <input id="startColor" type="color" value="#40f8d2" /></label>
-          <label>End color <input id="endColor" type="color" value="#6488ff" /></label>
-          <label>Background color <input id="bgColor" type="color" value="#090c12" /></label>
+          <label>Start color <input id="startColor" type="color" value="#5dff7a" /></label>
+          <label>End color <input id="endColor" type="color" value="#22d14d" /></label>
+          <label>Background color <input id="bgColor" type="color" value="#020b05" /></label>
         </div>
         <div class="actions">
           <button id="exportPng">Export PNG</button>
@@ -44,9 +44,11 @@
       </aside>
       <main class="viewport">
         <canvas id="scene"></canvas>
+        <div id="sceneFallback" class="scene-fallback hidden" role="alert" aria-live="polite"></div>
       </main>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"></script>
+    <script defer src="app.js"></script>
   </body>
 </html>

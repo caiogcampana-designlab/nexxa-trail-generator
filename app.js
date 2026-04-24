@@ -1,25 +1,6 @@
-import * as THREE from 'https://unpkg.com/three@0.164.1/build/three.module.js';
-
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
-camera.position.set(0, 0, 10);
-
-const root = new THREE.Group();
-scene.add(root);
-
-const lightA = new THREE.DirectionalLight(0xffffff, 1.0);
-lightA.position.set(3, 2, 6);
-scene.add(lightA);
-
-const lightB = new THREE.DirectionalLight(0x7799ff, 0.55);
-lightB.position.set(-2, -1.5, -3);
-scene.add(lightB);
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.24));
+const fallbackEl = document.getElementById('sceneFallback');
+const { THREE } = window;
 
 const controls = {
   startShape: document.getElementById('startShape'),
@@ -41,7 +22,50 @@ const controls = {
   exportSvg: document.getElementById('exportSvg')
 };
 
+function showFallback(message) {
+  fallbackEl.textContent = message;
+  fallbackEl.classList.remove('hidden');
+  canvas.classList.add('hidden');
+}
+
+if (!THREE) {
+  showFallback('Three.js failed to load. Check your network connection or content-security policy and reload.');
+  throw new Error('THREE unavailable');
+}
+
+if (!window.WebGLRenderingContext) {
+  showFallback('WebGL is not available in this browser. Please use a modern browser with hardware acceleration enabled.');
+  throw new Error('WebGL unsupported');
+}
+
+let renderer;
+let scene;
+let camera;
+let root;
 let generatedTrails = [];
+
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+} catch (error) {
+  showFallback('Unable to initialize WebGL rendering. Check browser graphics settings and reload.');
+  throw error;
+}
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+scene = new THREE.Scene();
+camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+root = new THREE.Group();
+scene.add(root);
+
+const lightA = new THREE.DirectionalLight(0xffffff, 1.0);
+lightA.position.set(3, 2, 6);
+scene.add(lightA);
+
+const lightB = new THREE.DirectionalLight(0x85ff98, 0.35);
+lightB.position.set(-2, -1.5, -3);
+scene.add(lightB);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.22));
 
 function polygonByName(name) {
   if (name === 'triangle') {
@@ -91,12 +115,42 @@ function interpolateShape(a, b, t) {
   return a.map((point, i) => new THREE.Vector2().lerpVectors(point, b[i], t));
 }
 
-function buildTrail() {
+function clearRoot() {
   while (root.children.length > 0) {
-    const child = root.children.pop();
+    const child = root.children[root.children.length - 1];
+    root.remove(child);
     child.geometry.dispose();
     child.material.dispose();
   }
+}
+
+function frameTrailInView() {
+  const box = new THREE.Box3().setFromObject(root);
+  if (box.isEmpty()) {
+    camera.position.set(0, 0, 10);
+    camera.lookAt(0, 0, 0);
+    return;
+  }
+
+  const center = box.getCenter(new THREE.Vector3());
+  root.position.sub(center);
+
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const radius = Math.max(sphere.radius, 1);
+  const fitHeightDistance = radius / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
+  const fitWidthDistance = fitHeightDistance / camera.aspect;
+  const distance = 1.3 * Math.max(fitHeightDistance, fitWidthDistance);
+
+  camera.position.set(0, 0, distance);
+  camera.near = Math.max(0.1, distance - radius * 3);
+  camera.far = distance + radius * 3;
+  camera.lookAt(0, 0, 0);
+  camera.updateProjectionMatrix();
+}
+
+function buildTrail() {
+  clearRoot();
+  root.position.set(0, 0, 0);
 
   const params = {
     startShape: controls.startShape.value,
@@ -142,10 +196,10 @@ function buildTrail() {
     const tube = new THREE.TubeGeometry(curve, sampleCount, params.thickness, 7, true);
     const material = new THREE.MeshStandardMaterial({
       color,
-      roughness: 0.32,
-      metalness: 0.38,
+      roughness: 0.35,
+      metalness: 0.28,
       transparent: true,
-      opacity: 0.97
+      opacity: 0.98
     });
 
     const mesh = new THREE.Mesh(tube, material);
@@ -155,6 +209,7 @@ function buildTrail() {
   }
 
   scene.background = new THREE.Color(controls.bgColor.value);
+  frameTrailInView();
 }
 
 function resize() {
@@ -163,6 +218,7 @@ function resize() {
   renderer.setSize(clientWidth, clientHeight, false);
   camera.aspect = clientWidth / clientHeight;
   camera.updateProjectionMatrix();
+  frameTrailInView();
 }
 
 function animate() {
