@@ -108,20 +108,89 @@ root = new THREE.Group();
 scene.add(root);
 
 function polygonByName(name) {
+  const rounded = (vertices, radius) => roundedPolygon(vertices, radius, 7);
+
   if (name === 'triangle') {
-    return [
+    return rounded([
       new THREE.Vector2(0, 1),
       new THREE.Vector2(-0.95, -0.78),
       new THREE.Vector2(0.95, -0.78)
-    ];
+    ], 0.17);
   }
 
-  return [
+  return rounded([
     new THREE.Vector2(0, 1),
     new THREE.Vector2(-0.88, 0),
     new THREE.Vector2(0, -1),
     new THREE.Vector2(0.88, 0)
-  ];
+  ], 0.16);
+}
+
+function roundedPolygon(vertices, radius, arcSegments = 6) {
+  if (vertices.length < 3 || radius <= 0) {
+    return vertices.map((point) => point.clone());
+  }
+
+  const result = [];
+  for (let i = 0; i < vertices.length; i += 1) {
+    const prev = vertices[(i - 1 + vertices.length) % vertices.length];
+    const curr = vertices[i];
+    const next = vertices[(i + 1) % vertices.length];
+
+    const inVec = prev.clone().sub(curr);
+    const outVec = next.clone().sub(curr);
+    const inLen = inVec.length();
+    const outLen = outVec.length();
+
+    if (inLen < 1e-5 || outLen < 1e-5) {
+      result.push(curr.clone());
+      continue;
+    }
+
+    const inDir = inVec.clone().divideScalar(inLen);
+    const outDir = outVec.clone().divideScalar(outLen);
+    const cornerAngle = Math.acos(THREE.MathUtils.clamp(inDir.dot(outDir), -1, 1));
+    const safeAngle = Math.max(cornerAngle, 0.01);
+    const maxRadius = Math.min(radius, inLen * 0.45, outLen * 0.45);
+    const tangentDistance = maxRadius / Math.tan(safeAngle / 2);
+
+    const start = curr.clone().add(inDir.multiplyScalar(tangentDistance));
+    const end = curr.clone().add(outDir.multiplyScalar(tangentDistance));
+
+    for (let seg = 0; seg <= arcSegments; seg += 1) {
+      const t = seg / arcSegments;
+      result.push(new THREE.Vector2().lerpVectors(start, end, t));
+    }
+  }
+
+  return result;
+}
+
+function alignPointSets(a, b) {
+  if (a.length !== b.length || a.length === 0) {
+    return b;
+  }
+
+  let bestOffset = 0;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let offset = 0; offset < b.length; offset += 1) {
+    let score = 0;
+    for (let i = 0; i < a.length; i += 1) {
+      const j = (i + offset) % b.length;
+      score += a[i].distanceToSquared(b[j]);
+    }
+    if (score < bestScore) {
+      bestScore = score;
+      bestOffset = offset;
+    }
+  }
+
+  const aligned = [];
+  for (let i = 0; i < b.length; i += 1) {
+    aligned.push(b[(i + bestOffset) % b.length].clone());
+  }
+  return aligned;
 }
 
 function resamplePolygon(vertices, samples) {
@@ -311,15 +380,17 @@ function buildTrail() {
   root.rotation.set(params.rotX, params.rotY, params.rotZ);
   root.scale.setScalar(params.globalScale);
 
-  const sampleCount = 84;
+  const sampleCount = 192;
   const startBase = resamplePolygon(polygonByName(params.startShape), sampleCount);
-  const endBase = resamplePolygon(polygonByName(params.endShape), sampleCount);
+  const endBaseRaw = resamplePolygon(polygonByName(params.endShape), sampleCount);
+  const endBase = alignPointSets(startBase, endBaseRaw);
   const direction = new THREE.Vector2(Math.cos(params.trailAngle), Math.sin(params.trailAngle));
+  const trailSteps = Math.min(240, Math.max(params.density, Math.round(params.density * 1.8)));
 
   generatedTrails = [];
 
-  for (let i = 0; i < params.density; i += 1) {
-    const t = params.density === 1 ? 0 : i / (params.density - 1);
+  for (let i = 0; i < trailSteps; i += 1) {
+    const t = trailSteps === 1 ? 0 : i / (trailSteps - 1);
     const size = THREE.MathUtils.lerp(params.startSize, params.endSize, t);
     const shapeRot = THREE.MathUtils.lerp(params.startRot, params.endRot, t);
     const color = new THREE.Color().lerpColors(params.startColor, params.endColor, t);
