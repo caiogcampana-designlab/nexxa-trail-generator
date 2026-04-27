@@ -71,6 +71,7 @@ const controls = {
 const state = {
   backgroundColor: BRAND_COLORS.darkGreen,
   oppositeColor: BRAND_COLORS.mediumGreen,
+  renderMode: 'graphic2d',
   time: 0
 };
 
@@ -87,7 +88,9 @@ if (!window.WebGLRenderingContext) {
 
 let renderer;
 let scene;
-let camera;
+let camera2D;
+let camera3D;
+let activeCamera;
 let root;
 let generatedTrails = [];
 const clock = new THREE.Clock();
@@ -101,9 +104,13 @@ try {
 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 scene = new THREE.Scene();
-camera = new THREE.OrthographicCamera(-6, 6, 6, -6, 0.1, 100);
-camera.position.set(0, 0, 10);
-camera.lookAt(0, 0, 0);
+camera2D = new THREE.OrthographicCamera(-6, 6, 6, -6, 0.1, 100);
+camera2D.position.set(0, 0, 10);
+camera2D.lookAt(0, 0, 0);
+camera3D = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
+camera3D.position.set(0, 0, 12);
+camera3D.lookAt(0, 0, 0);
+activeCamera = camera2D;
 root = new THREE.Group();
 scene.add(root);
 
@@ -240,12 +247,23 @@ function clearRoot() {
 function frameTrailInView() {
   const box = new THREE.Box3().setFromObject(root);
   if (box.isEmpty()) {
-    camera.left = -6;
-    camera.right = 6;
-    camera.top = 6;
-    camera.bottom = -6;
-    camera.position.set(0, 0, 10);
-    camera.updateProjectionMatrix();
+    if (state.renderMode === 'vector3d') {
+      camera3D.position.set(0, 0, 12);
+      camera3D.near = 0.1;
+      camera3D.far = 200;
+      camera3D.lookAt(0, 0, 0);
+      camera3D.updateProjectionMatrix();
+    } else {
+      camera2D.left = -6;
+      camera2D.right = 6;
+      camera2D.top = 6;
+      camera2D.bottom = -6;
+      camera2D.position.set(0, 0, 10);
+      camera2D.near = 0.1;
+      camera2D.far = 100;
+      camera2D.lookAt(0, 0, 0);
+      camera2D.updateProjectionMatrix();
+    }
     return;
   }
 
@@ -253,27 +271,43 @@ function frameTrailInView() {
   root.position.sub(center);
 
   const size = box.getSize(new THREE.Vector3());
-  const halfW = Math.max(2.4, size.x * 0.64);
-  const halfH = Math.max(2.4, size.y * 0.64);
-  const aspect = Math.max(0.01, camera.aspect);
+  if (state.renderMode === 'vector3d') {
+    const aspect = Math.max(0.01, camera3D.aspect);
+    const paddedHalfHeight = Math.max(2.4, size.y * 0.7);
+    const paddedHalfWidth = Math.max(2.4, size.x * 0.7);
+    const fitHeight = paddedHalfHeight;
+    const fitWidth = paddedHalfWidth / aspect;
+    const fit = Math.max(fitHeight, fitWidth);
+    const distance = fit / Math.tan(THREE.MathUtils.degToRad(camera3D.fov * 0.5)) + size.z * 1.2 + 2.4;
 
-  if (halfW / halfH > aspect) {
-    camera.left = -halfW;
-    camera.right = halfW;
-    camera.top = halfW / aspect;
-    camera.bottom = -halfW / aspect;
+    camera3D.position.set(0, 0, distance);
+    camera3D.near = 0.1;
+    camera3D.far = Math.max(120, distance + size.length() * 6);
+    camera3D.lookAt(0, 0, 0);
+    camera3D.updateProjectionMatrix();
   } else {
-    camera.left = -halfH * aspect;
-    camera.right = halfH * aspect;
-    camera.top = halfH;
-    camera.bottom = -halfH;
-  }
+    const halfW = Math.max(2.4, size.x * 0.64);
+    const halfH = Math.max(2.4, size.y * 0.64);
+    const aspect = Math.max(0.01, camera2D.aspect);
 
-  camera.position.set(0, 0, 10);
-  camera.near = 0.1;
-  camera.far = 100;
-  camera.lookAt(0, 0, 0);
-  camera.updateProjectionMatrix();
+    if (halfW / halfH > aspect) {
+      camera2D.left = -halfW;
+      camera2D.right = halfW;
+      camera2D.top = halfW / aspect;
+      camera2D.bottom = -halfW / aspect;
+    } else {
+      camera2D.left = -halfH * aspect;
+      camera2D.right = halfH * aspect;
+      camera2D.top = halfH;
+      camera2D.bottom = -halfH;
+    }
+
+    camera2D.position.set(0, 0, 10);
+    camera2D.near = 0.1;
+    camera2D.far = 100;
+    camera2D.lookAt(0, 0, 0);
+    camera2D.updateProjectionMatrix();
+  }
 }
 
 function toHexUpper(color) {
@@ -356,6 +390,11 @@ function buildTrail() {
   clearRoot();
   root.position.set(0, 0, 0);
 
+  const renderMode = controls.renderMode.value;
+  const is3DMode = renderMode === 'vector3d';
+  state.renderMode = renderMode;
+  activeCamera = is3DMode ? camera3D : camera2D;
+
   const endpointColors = resolveEndpointColors();
   const params = {
     startShape: controls.startShape.value,
@@ -370,9 +409,9 @@ function buildTrail() {
     thickness: clampNum(controls.thickness.value, 0.015, 0.12),
     density: Math.round(clampNum(controls.density.value, 16, 96)),
     fade: clampNum(controls.fade.value, 0, 0.75),
-    rotX: THREE.MathUtils.degToRad(clampNum(controls.rotX.value, -180, 180)),
-    rotY: THREE.MathUtils.degToRad(clampNum(controls.rotY.value, -180, 180)),
-    rotZ: THREE.MathUtils.degToRad(clampNum(controls.rotZ.value, -180, 180)),
+    rotX: is3DMode ? THREE.MathUtils.degToRad(clampNum(controls.rotX.value, -180, 180)) : 0,
+    rotY: is3DMode ? THREE.MathUtils.degToRad(clampNum(controls.rotY.value, -180, 180)) : 0,
+    rotZ: is3DMode ? THREE.MathUtils.degToRad(clampNum(controls.rotZ.value, -180, 180)) : 0,
     startColor: new THREE.Color(endpointColors.startColor),
     endColor: new THREE.Color(endpointColors.endColor)
   };
@@ -431,8 +470,11 @@ function buildTrail() {
 function resize() {
   const { clientWidth, clientHeight } = viewport;
   renderer.setSize(clientWidth, clientHeight, false);
-  camera.aspect = clientWidth / clientHeight;
-  camera.updateProjectionMatrix();
+  const aspect = clientWidth / clientHeight;
+  camera2D.aspect = aspect;
+  camera2D.updateProjectionMatrix();
+  camera3D.aspect = aspect;
+  camera3D.updateProjectionMatrix();
   frameTrailInView();
 }
 
@@ -443,7 +485,7 @@ function updateFrame(delta) {
 function animate() {
   requestAnimationFrame(animate);
   updateFrame(clock.getDelta());
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCamera);
 }
 
 function downloadFile(name, dataUrl) {
@@ -454,7 +496,7 @@ function downloadFile(name, dataUrl) {
 }
 
 function exportPng() {
-  renderer.render(scene, camera);
+  renderer.render(scene, activeCamera);
   downloadFile('nexxa-trail.png', renderer.domElement.toDataURL('image/png'));
 }
 
@@ -464,7 +506,7 @@ function exportSvg() {
   const projectedPaths = generatedTrails.map((trail) => {
     const projected = trail.points.map((point) => {
       const world = root.localToWorld(point.clone());
-      const clip = world.project(camera);
+      const clip = world.project(activeCamera);
       return {
         x: (clip.x * 0.5 + 0.5) * width,
         y: (1 - (clip.y * 0.5 + 0.5)) * height
@@ -543,6 +585,13 @@ function smartRandom() {
   buildTrail();
 }
 
+function syncModeUi() {
+  const is3DMode = controls.renderMode.value === 'vector3d';
+  controls.rotX.disabled = !is3DMode;
+  controls.rotY.disabled = !is3DMode;
+  controls.rotZ.disabled = !is3DMode;
+}
+
 [
   controls.renderMode,
   controls.startShape,
@@ -565,6 +614,8 @@ function smartRandom() {
   el.addEventListener('input', buildTrail);
 });
 
+controls.renderMode.addEventListener('input', syncModeUi);
+
 controls.presetFlow01.addEventListener('click', () => applyPreset('flow01'));
 controls.presetConvergence.addEventListener('click', () => applyPreset('convergence'));
 controls.presetSignal.addEventListener('click', () => applyPreset('signal'));
@@ -575,5 +626,6 @@ window.addEventListener('resize', resize);
 
 renderSwatches();
 resize();
+syncModeUi();
 buildTrail();
 animate();
