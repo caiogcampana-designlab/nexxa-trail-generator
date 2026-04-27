@@ -423,7 +423,8 @@ function buildTrail() {
   const startBase = resamplePolygon(polygonByName(params.startShape), sampleCount);
   const endBaseRaw = resamplePolygon(polygonByName(params.endShape), sampleCount);
   const endBase = alignPointSets(startBase, endBaseRaw);
-  const direction = new THREE.Vector2(Math.cos(params.trailAngle), Math.sin(params.trailAngle));
+  const direction2D = new THREE.Vector2(Math.cos(params.trailAngle), Math.sin(params.trailAngle));
+  const direction3D = new THREE.Vector3(1, 0, 0.45).normalize();
   const trailSteps = Math.min(240, Math.max(params.density, Math.round(params.density * 1.8)));
 
   generatedTrails = [];
@@ -435,12 +436,13 @@ function buildTrail() {
     const color = new THREE.Color().lerpColors(params.startColor, params.endColor, t);
 
     const offset = THREE.MathUtils.lerp(-params.trailLength / 2, params.trailLength / 2, t);
-    const centerX = direction.x * offset;
-    const centerY = direction.y * offset;
+    const center = is3DMode
+      ? direction3D.clone().multiplyScalar(offset)
+      : new THREE.Vector3(direction2D.x * offset, direction2D.y * offset, 0);
 
     const shapePoints = interpolateShape(startBase, endBase, t).map((point) => {
       const rotated = point.clone().rotateAround(new THREE.Vector2(), shapeRot).multiplyScalar(size);
-      return new THREE.Vector3(rotated.x + centerX, rotated.y + centerY, 0);
+      return new THREE.Vector3(rotated.x + center.x, rotated.y + center.y, center.z);
     });
 
     const geometry = new THREE.BufferGeometry().setFromPoints(shapePoints);
@@ -587,6 +589,7 @@ function smartRandom() {
 
 function syncModeUi() {
   const is3DMode = controls.renderMode.value === 'vector3d';
+  controls.trailAngle.disabled = is3DMode;
   controls.rotX.disabled = !is3DMode;
   controls.rotY.disabled = !is3DMode;
   controls.rotZ.disabled = !is3DMode;
