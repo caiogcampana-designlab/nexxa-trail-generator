@@ -72,8 +72,15 @@ const state = {
   backgroundColor: BRAND_COLORS.darkGreen,
   oppositeColor: BRAND_COLORS.mediumGreen,
   renderMode: 'graphic2d',
-  time: 0
+  time: 0,
+  hasAppliedDefault3DView: false
 };
+
+const DEFAULT_3D_ORIENTATION = Object.freeze({
+  rotX: 26,
+  rotY: -34,
+  rotZ: 12
+});
 
 function showFallback(message) {
   fallbackEl.textContent = message;
@@ -92,6 +99,7 @@ let camera2D;
 let camera3D;
 let activeCamera;
 let root;
+let trailGroup;
 let generatedTrails = [];
 const clock = new THREE.Clock();
 
@@ -112,6 +120,8 @@ camera3D.position.set(0, 0, 12);
 camera3D.lookAt(0, 0, 0);
 activeCamera = camera2D;
 root = new THREE.Group();
+trailGroup = new THREE.Group();
+root.add(trailGroup);
 scene.add(root);
 
 function polygonByName(name) {
@@ -231,10 +241,10 @@ function interpolateShape(a, b, t) {
   return a.map((point, i) => new THREE.Vector2().lerpVectors(point, b[i], t));
 }
 
-function clearRoot() {
-  while (root.children.length > 0) {
-    const child = root.children[root.children.length - 1];
-    root.remove(child);
+function clearGroup(group) {
+  while (group.children.length > 0) {
+    const child = group.children[group.children.length - 1];
+    group.remove(child);
     if (child.geometry) {
       child.geometry.dispose();
     }
@@ -248,7 +258,7 @@ function frameTrailInView() {
   const box = new THREE.Box3().setFromObject(root);
   if (box.isEmpty()) {
     if (state.renderMode === 'vector3d') {
-      camera3D.position.set(0, 0, 12);
+      camera3D.position.set(2.2, 1.4, 12);
       camera3D.near = 0.1;
       camera3D.far = 200;
       camera3D.lookAt(0, 0, 0);
@@ -280,7 +290,7 @@ function frameTrailInView() {
     const fit = Math.max(fitHeight, fitWidth);
     const distance = fit / Math.tan(THREE.MathUtils.degToRad(camera3D.fov * 0.5)) + size.z * 1.2 + 2.4;
 
-    camera3D.position.set(0, 0, distance);
+    camera3D.position.set(distance * 0.18, distance * 0.12, distance);
     camera3D.near = 0.1;
     camera3D.far = Math.max(120, distance + size.length() * 6);
     camera3D.lookAt(0, 0, 0);
@@ -387,7 +397,7 @@ function resolveEndpointColors() {
 }
 
 function buildTrail() {
-  clearRoot();
+  clearGroup(trailGroup);
   root.position.set(0, 0, 0);
 
   const renderMode = controls.renderMode.value;
@@ -416,15 +426,16 @@ function buildTrail() {
     endColor: new THREE.Color(endpointColors.endColor)
   };
 
-  root.rotation.set(params.rotX, params.rotY, params.rotZ);
-  root.scale.setScalar(params.globalScale);
+  trailGroup.position.set(0, 0, 0);
+  trailGroup.rotation.set(params.rotX, params.rotY, params.rotZ);
+  trailGroup.scale.setScalar(params.globalScale);
 
   const sampleCount = 192;
   const startBase = resamplePolygon(polygonByName(params.startShape), sampleCount);
   const endBaseRaw = resamplePolygon(polygonByName(params.endShape), sampleCount);
   const endBase = alignPointSets(startBase, endBaseRaw);
   const direction2D = new THREE.Vector2(Math.cos(params.trailAngle), Math.sin(params.trailAngle));
-  const direction3D = new THREE.Vector3(1, 0, 0.45).normalize();
+  const direction3D = new THREE.Vector3(0.72, 0.28, 1).normalize();
   const trailSteps = Math.min(240, Math.max(params.density, Math.round(params.density * 1.8)));
 
   generatedTrails = [];
@@ -455,7 +466,7 @@ function buildTrail() {
     });
 
     const line = new THREE.LineLoop(geometry, material);
-    root.add(line);
+    trailGroup.add(line);
 
     generatedTrails.push({
       points: shapePoints,
@@ -507,7 +518,7 @@ function exportSvg() {
   const height = renderer.domElement.height;
   const projectedPaths = generatedTrails.map((trail) => {
     const projected = trail.points.map((point) => {
-      const world = root.localToWorld(point.clone());
+      const world = trailGroup.localToWorld(point.clone());
       const clip = world.project(activeCamera);
       return {
         x: (clip.x * 0.5 + 0.5) * width,
@@ -593,6 +604,14 @@ function syncModeUi() {
   controls.rotX.disabled = !is3DMode;
   controls.rotY.disabled = !is3DMode;
   controls.rotZ.disabled = !is3DMode;
+
+  if (is3DMode && !state.hasAppliedDefault3DView) {
+    controls.rotX.value = DEFAULT_3D_ORIENTATION.rotX;
+    controls.rotY.value = DEFAULT_3D_ORIENTATION.rotY;
+    controls.rotZ.value = DEFAULT_3D_ORIENTATION.rotZ;
+    state.hasAppliedDefault3DView = true;
+    buildTrail();
+  }
 }
 
 [
