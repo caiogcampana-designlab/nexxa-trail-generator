@@ -25,17 +25,17 @@ const PRESETS = {
   flow01: {
     startShape: 'triangle', endShape: 'diamond', startSize: 1.15, endSize: 0.82, startRotation: -8, endRotation: 42,
     thickness: 0.052, density: 56, trailAngle: 22, rotX: 12, rotY: -18, rotZ: 6, globalScale: 1.02, trailLength: 8.8,
-    fade: 0.22, blendSide: 'end', background: BRAND_COLORS.darkGreen, opposite: BRAND_COLORS.mediumGreen
+    fade: 0.22, background: BRAND_COLORS.darkGreen, start: BRAND_COLORS.mediumGreen, end: BRAND_COLORS.darkGreen
   },
   convergence: {
     startShape: 'diamond', endShape: 'diamond', startSize: 1.42, endSize: 0.62, startRotation: 0, endRotation: 112,
     thickness: 0.058, density: 62, trailAngle: 300, rotX: 18, rotY: -14, rotZ: 14, globalScale: 0.98, trailLength: 9.3,
-    fade: 0.3, blendSide: 'start', background: BRAND_COLORS.lightGray, opposite: BRAND_COLORS.darkGreen
+    fade: 0.3, background: BRAND_COLORS.lightGray, start: BRAND_COLORS.lightGray, end: BRAND_COLORS.darkGreen
   },
   signal: {
     startShape: 'triangle', endShape: 'triangle', startSize: 0.9, endSize: 1.46, startRotation: -66, endRotation: 14,
     thickness: 0.048, density: 48, trailAngle: 70, rotX: 8, rotY: -24, rotZ: -4, globalScale: 1.08, trailLength: 7.1,
-    fade: 0.16, blendSide: 'end', background: BRAND_COLORS.mediumGray, opposite: BRAND_COLORS.coral
+    fade: 0.16, background: BRAND_COLORS.mediumGray, start: BRAND_COLORS.coral, end: BRAND_COLORS.mediumGray
   }
 };
 
@@ -57,12 +57,12 @@ const controls = {
   thickness: document.getElementById('thickness'),
   density: document.getElementById('density'),
   fade: document.getElementById('fade'),
-  blendSide: document.getElementById('blendSide'),
   rotX: document.getElementById('rotX'),
   rotY: document.getElementById('rotY'),
   rotZ: document.getElementById('rotZ'),
   bgSwatches: document.getElementById('bgSwatches'),
-  oppositeSwatches: document.getElementById('oppositeSwatches'),
+  startSwatches: document.getElementById('startSwatches'),
+  endSwatches: document.getElementById('endSwatches'),
   presetFlow01: document.getElementById('presetFlow01'),
   presetConvergence: document.getElementById('presetConvergence'),
   presetSignal: document.getElementById('presetSignal'),
@@ -72,7 +72,8 @@ const controls = {
 
 const state = {
   backgroundColor: BRAND_COLORS.darkGreen,
-  oppositeColor: BRAND_COLORS.mediumGreen,
+  startColor: BRAND_COLORS.mediumGreen,
+  endColor: BRAND_COLORS.darkGreen,
   renderMode: 'graphic2d',
   time: 0,
   hasAppliedDefault3DView: false
@@ -337,7 +338,7 @@ function backgroundChoices() {
   return BACKGROUND_COLOR_KEYS.map((key) => BRAND_COLORS[key]);
 }
 
-function allowedOppositeColors(backgroundColor) {
+function allowedTrailColors(backgroundColor) {
   return OPPOSITE_BY_BACKGROUND[toHexUpper(backgroundColor)] ?? [BRAND_COLORS.darkGreen];
 }
 
@@ -358,32 +359,67 @@ function makeSwatch(color, title, onSelect, isActive, isDisabled = false) {
 
 function renderSwatches() {
   controls.bgSwatches.innerHTML = '';
-  controls.oppositeSwatches.innerHTML = '';
+  controls.startSwatches.innerHTML = '';
+  controls.endSwatches.innerHTML = '';
 
   backgroundChoices().forEach((color) => {
     const active = toHexUpper(state.backgroundColor) === toHexUpper(color);
     controls.bgSwatches.appendChild(makeSwatch(color, `Background ${color}`, () => {
       state.backgroundColor = color;
-      syncOppositeColor();
+      syncTrailPalette();
+      syncTrailEndpointRule('background');
       renderSwatches();
       buildTrail();
     }, active));
   });
 
-  allowedOppositeColors(state.backgroundColor).forEach((color) => {
-    const active = toHexUpper(state.oppositeColor) === toHexUpper(color);
-    controls.oppositeSwatches.appendChild(makeSwatch(color, `Opposite ${color}`, () => {
-      state.oppositeColor = color;
+  const trailPalette = [
+    state.backgroundColor,
+    ...allowedTrailColors(state.backgroundColor)
+  ];
+
+  trailPalette.forEach((color) => {
+    const isActive = toHexUpper(state.startColor) === toHexUpper(color);
+    controls.startSwatches.appendChild(makeSwatch(color, `Start ${color}`, () => {
+      state.startColor = color;
+      syncTrailEndpointRule('start');
       renderSwatches();
       buildTrail();
-    }, active));
+    }, isActive));
+  });
+
+  trailPalette.forEach((color) => {
+    const isActive = toHexUpper(state.endColor) === toHexUpper(color);
+    controls.endSwatches.appendChild(makeSwatch(color, `End ${color}`, () => {
+      state.endColor = color;
+      syncTrailEndpointRule('end');
+      renderSwatches();
+      buildTrail();
+    }, isActive));
   });
 }
 
-function syncOppositeColor() {
-  const allowed = allowedOppositeColors(state.backgroundColor);
-  if (!allowed.includes(toHexUpper(state.oppositeColor))) {
-    state.oppositeColor = allowed[0];
+function syncTrailEndpointRule(changedSide = 'background') {
+  const bg = toHexUpper(state.backgroundColor);
+  const startMatches = toHexUpper(state.startColor) === bg;
+  const endMatches = toHexUpper(state.endColor) === bg;
+
+  if (!startMatches && !endMatches) {
+    if (changedSide === 'start') {
+      state.endColor = state.backgroundColor;
+    } else {
+      state.startColor = state.backgroundColor;
+    }
+  }
+}
+
+function syncTrailPalette() {
+  const allowed = new Set([toHexUpper(state.backgroundColor), ...allowedTrailColors(state.backgroundColor).map(toHexUpper)]);
+  if (!allowed.has(toHexUpper(state.startColor))) {
+    state.startColor = state.backgroundColor;
+  }
+  if (!allowed.has(toHexUpper(state.endColor))) {
+    state.endColor = state.backgroundColor;
   }
 }
 
@@ -399,10 +435,7 @@ function clampNum(value, min, max) {
 }
 
 function resolveEndpointColors() {
-  const blendIntoBackgroundAtStart = controls.blendSide.value === 'start';
-  return blendIntoBackgroundAtStart
-    ? { startColor: state.backgroundColor, endColor: state.oppositeColor }
-    : { startColor: state.oppositeColor, endColor: state.backgroundColor };
+  return { startColor: state.startColor, endColor: state.endColor };
 }
 
 function buildTrail() {
@@ -587,14 +620,15 @@ function applyPreset(name) {
   controls.thickness.value = preset.thickness;
   controls.density.value = preset.density;
   controls.fade.value = preset.fade;
-  controls.blendSide.value = preset.blendSide;
   controls.rotX.value = preset.rotX;
   controls.rotY.value = preset.rotY;
   controls.rotZ.value = preset.rotZ;
 
   state.backgroundColor = preset.background;
-  state.oppositeColor = preset.opposite;
-  syncOppositeColor();
+  state.startColor = preset.start;
+  state.endColor = preset.end;
+  syncTrailPalette();
+  syncTrailEndpointRule('background');
   renderSwatches();
   buildTrail();
 }
@@ -629,7 +663,6 @@ function syncModeUi() {
   controls.thickness,
   controls.density,
   controls.fade,
-  controls.blendSide,
   controls.rotX,
   controls.rotY,
   controls.rotZ
