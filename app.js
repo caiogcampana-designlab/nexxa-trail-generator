@@ -1,4 +1,7 @@
 import * as THREE from 'https://unpkg.com/three@0.164.1/build/three.module.js';
+import { Line2 } from 'https://unpkg.com/three@0.164.1/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'https://unpkg.com/three@0.164.1/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'https://unpkg.com/three@0.164.1/examples/jsm/lines/LineMaterial.js';
 
 const BRAND_COLORS = Object.freeze({
   darkGreen: '#00231F',
@@ -63,7 +66,6 @@ const controls = {
   presetFlow01: document.getElementById('presetFlow01'),
   presetConvergence: document.getElementById('presetConvergence'),
   presetSignal: document.getElementById('presetSignal'),
-  smartRandom: document.getElementById('smartRandom'),
   exportPng: document.getElementById('exportPng'),
   exportSvg: document.getElementById('exportSvg')
 };
@@ -143,7 +145,7 @@ function polygonByName(name) {
   ], 0.16);
 }
 
-function roundedPolygon(vertices, radius, arcSegments = 6) {
+function roundedPolygon(vertices, radius, arcSegments = 12) {
   if (vertices.length < 3 || radius <= 0) {
     return vertices.map((point) => point.clone());
   }
@@ -176,7 +178,10 @@ function roundedPolygon(vertices, radius, arcSegments = 6) {
 
     for (let seg = 0; seg <= arcSegments; seg += 1) {
       const t = seg / arcSegments;
-      result.push(new THREE.Vector2().lerpVectors(start, end, t));
+      const a = start.clone().multiplyScalar((1 - t) * (1 - t));
+      const b = curr.clone().multiplyScalar(2 * (1 - t) * t);
+      const c = end.clone().multiplyScalar(t * t);
+      result.push(a.add(b).add(c));
     }
   }
 
@@ -255,7 +260,11 @@ function clearGroup(group) {
 }
 
 function frameTrailInView() {
+  const previousScale = trailGroup.scale.clone();
+  trailGroup.scale.setScalar(1);
+  root.updateWorldMatrix(true, true);
   const box = new THREE.Box3().setFromObject(root);
+  trailGroup.scale.copy(previousScale);
   if (box.isEmpty()) {
     if (state.renderMode === 'vector3d') {
       camera3D.position.set(2.2, 1.4, 12);
@@ -428,7 +437,8 @@ function buildTrail() {
 
   trailGroup.position.set(0, 0, 0);
   trailGroup.rotation.set(params.rotX, params.rotY, params.rotZ);
-  trailGroup.scale.setScalar(params.globalScale);
+  const pronouncedGlobalScale = THREE.MathUtils.lerp(0.35, 3.2, (params.globalScale - 0.5) / 1.7);
+  trailGroup.scale.setScalar(pronouncedGlobalScale);
 
   const sampleCount = 192;
   const startBase = resamplePolygon(polygonByName(params.startShape), sampleCount);
@@ -456,16 +466,29 @@ function buildTrail() {
       return new THREE.Vector3(rotated.x + center.x, rotated.y + center.y, center.z);
     });
 
-    const geometry = new THREE.BufferGeometry().setFromPoints(shapePoints);
     const opacity = THREE.MathUtils.lerp(1, Math.max(0.2, 1 - params.fade), t);
 
-    const material = new THREE.LineBasicMaterial({
+    const positions = [];
+    shapePoints.forEach((p) => {
+      positions.push(p.x, p.y, p.z);
+    });
+    const first = shapePoints[0];
+    positions.push(first.x, first.y, first.z);
+
+    const geometry = new LineGeometry();
+    geometry.setPositions(positions);
+
+    const material = new LineMaterial({
       color,
       transparent: true,
-      opacity
+      opacity,
+      linewidth: params.thickness * 0.22,
+      worldUnits: true
     });
+    material.resolution.set(viewport.clientWidth, viewport.clientHeight);
 
-    const line = new THREE.LineLoop(geometry, material);
+    const line = new Line2(geometry, material);
+    line.computeLineDistances();
     trailGroup.add(line);
 
     generatedTrails.push({
@@ -488,6 +511,13 @@ function resize() {
   camera2D.updateProjectionMatrix();
   camera3D.aspect = aspect;
   camera3D.updateProjectionMatrix();
+
+  trailGroup.children.forEach((child) => {
+    if (child.material && child.material.resolution) {
+      child.material.resolution.set(clientWidth, clientHeight);
+    }
+  });
+
   frameTrailInView();
 }
 
@@ -569,35 +599,6 @@ function applyPreset(name) {
   buildTrail();
 }
 
-function smartRandom() {
-  const backgrounds = backgroundChoices();
-  const randomBackground = backgrounds[Math.floor(Math.random() * backgrounds.length)];
-  state.backgroundColor = randomBackground;
-
-  const allowedOpposites = allowedOppositeColors(randomBackground);
-  state.oppositeColor = allowedOpposites[Math.floor(Math.random() * allowedOpposites.length)];
-
-  controls.startShape.value = Math.random() > 0.5 ? 'triangle' : 'diamond';
-  controls.endShape.value = Math.random() > 0.5 ? 'triangle' : 'diamond';
-  controls.startSize.value = (0.7 + Math.random() * 1.2).toFixed(2);
-  controls.endSize.value = (0.7 + Math.random() * 1.2).toFixed(2);
-  controls.globalScale.value = (0.8 + Math.random() * 0.6).toFixed(2);
-  controls.trailLength.value = (4.5 + Math.random() * 8.5).toFixed(1);
-  controls.trailAngle.value = Math.round(Math.random() * 360);
-  controls.startRotation.value = Math.round(-90 + Math.random() * 180);
-  controls.endRotation.value = Math.round(-90 + Math.random() * 180);
-  controls.thickness.value = (0.038 + Math.random() * 0.028).toFixed(3);
-  controls.density.value = Math.round(36 + Math.random() * 48);
-  controls.fade.value = (0.08 + Math.random() * 0.36).toFixed(2);
-  controls.blendSide.value = Math.random() > 0.5 ? 'start' : 'end';
-  controls.rotX.value = Math.round(-28 + Math.random() * 56);
-  controls.rotY.value = Math.round(-38 + Math.random() * 76);
-  controls.rotZ.value = Math.round(-28 + Math.random() * 56);
-
-  renderSwatches();
-  buildTrail();
-}
-
 function syncModeUi() {
   const is3DMode = controls.renderMode.value === 'vector3d';
   controls.trailAngle.disabled = is3DMode;
@@ -641,7 +642,6 @@ controls.renderMode.addEventListener('input', syncModeUi);
 controls.presetFlow01.addEventListener('click', () => applyPreset('flow01'));
 controls.presetConvergence.addEventListener('click', () => applyPreset('convergence'));
 controls.presetSignal.addEventListener('click', () => applyPreset('signal'));
-controls.smartRandom.addEventListener('click', smartRandom);
 controls.exportPng.addEventListener('click', exportPng);
 controls.exportSvg.addEventListener('click', exportSvg);
 window.addEventListener('resize', resize);
